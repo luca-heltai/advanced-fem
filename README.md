@@ -1,9 +1,9 @@
 # Advanced Finite Element Analysis
 
-@author Prof. Luca Heltai <luca.heltai@sissa.it>
+Author: prof. Luca Heltai <luca.heltai@sissa.it>
 
 Lecture notes and codes for the course "Advanced Finite Element Analysis" @ SISSA.
 
-# LICENCE
+# LICENSE
 
-see file LICENCE in this directory.
+see file ./LICENSE in this directory.
