@@ -12,12 +12,7 @@
  * the top level directory of deal.II.
  *
  * ---------------------------------------------------------------------
-
- *
- * Author: Wolfgang Bangerth, University of Heidelberg, 1999
  */
-
-
 
 #include <deal.II/base/function.h>
 #include <deal.II/base/logstream.h>
@@ -55,10 +50,10 @@ using namespace dealii;
 
 
 template <int dim>
-class Step4 : ParameterAcceptor
+class TransportDiffusion : public ParameterAcceptor
 {
 public:
-  Step4();
+  TransportDiffusion();
   void
   run();
 
@@ -84,25 +79,29 @@ private:
   Vector<double> solution;
   Vector<double> system_rhs;
 
-  double       eps           = 1;
-  unsigned int n_refinements = 5;
+  double         eps           = 1;
+  double         stabilization = 0;
+  unsigned int   n_refinements = 5;
+  Tensor<1, dim> transport_vector;
 };
 
 
 template <int dim>
-Step4<dim>::Step4()
+TransportDiffusion<dim>::TransportDiffusion()
   : fe(1)
   , dof_handler(triangulation)
 {
   add_parameter("Epsilon", eps);
   add_parameter("N refinements", n_refinements);
+  add_parameter("Transport vector", transport_vector);
+  add_parameter("Stabilization", stabilization);
 }
 
 
 
 template <int dim>
 void
-Step4<dim>::make_grid()
+TransportDiffusion<dim>::make_grid()
 {
   GridGenerator::hyper_cube(triangulation, -1, 1);
   triangulation.refine_global(n_refinements);
@@ -116,7 +115,7 @@ Step4<dim>::make_grid()
 
 template <int dim>
 void
-Step4<dim>::setup_system()
+TransportDiffusion<dim>::setup_system()
 {
   dof_handler.distribute_dofs(fe);
 
@@ -137,7 +136,7 @@ Step4<dim>::setup_system()
 
 template <int dim>
 void
-Step4<dim>::assemble_system()
+TransportDiffusion<dim>::assemble_system()
 {
   QGauss<dim> quadrature_formula(fe.degree + 1);
 
@@ -156,10 +155,6 @@ Step4<dim>::assemble_system()
 
   std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
 
-  Tensor<1, dim> b;
-  for (unsigned int i = 0; i < dim; ++i)
-    b[i] = 1;
-
   for (const auto &cell : dof_handler.active_cell_iterators())
     {
       fe_values.reinit(cell);
@@ -173,10 +168,10 @@ Step4<dim>::assemble_system()
           {
             for (unsigned int j = 0; j < dofs_per_cell; ++j)
               cell_matrix(i, j) +=
-                ((eps + h) * fe_values.shape_grad(i, q_index) *
+                ((eps + stabilization * h) * fe_values.shape_grad(i, q_index) *
                    fe_values.shape_grad(j, q_index) +
                  fe_values.shape_value(i, q_index) *
-                   (fe_values.shape_grad(j, q_index) * b)) *
+                   (fe_values.shape_grad(j, q_index) * transport_vector)) *
                 fe_values.JxW(q_index);
 
             const auto x_q = fe_values.quadrature_point(q_index);
@@ -213,26 +208,18 @@ Step4<dim>::assemble_system()
 
 template <int dim>
 void
-Step4<dim>::solve()
+TransportDiffusion<dim>::solve()
 {
-  // SolverControl solver_control(1000, 1e-12);
-  // SolverGMRES<> solver(solver_control);
-
   SparseDirectUMFPACK Ainv;
   Ainv.initialize(system_matrix);
   Ainv.vmult(solution, system_rhs);
-
-  // solver.solve(system_matrix, solution, system_rhs, PreconditionIdentity());
-
-  // std::cout << "   " << solver_control.last_step()
-  //           << " CG iterations needed to obtain convergence." << std::endl;
 }
 
 
 
 template <int dim>
 void
-Step4<dim>::output_results() const
+TransportDiffusion<dim>::output_results() const
 {
   DataOut<dim> data_out;
 
@@ -249,7 +236,7 @@ Step4<dim>::output_results() const
 
 template <int dim>
 void
-Step4<dim>::run()
+TransportDiffusion<dim>::run()
 {
   std::cout << "Solving problem in " << dim << " space dimensions."
             << std::endl;
@@ -268,8 +255,8 @@ main()
 {
   deallog.depth_console(0);
   {
-    Step4<2> laplace_problem_2d;
-    ParameterAcceptor::initialize("parameters.prm");
+    TransportDiffusion<2> laplace_problem_2d;
+    laplace_problem_2d.initialize("parameters.prm", "used_parameters.prm");
     laplace_problem_2d.run();
   }
 
